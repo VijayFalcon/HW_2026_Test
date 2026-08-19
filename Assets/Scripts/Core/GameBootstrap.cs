@@ -65,7 +65,7 @@ namespace DoofusDiaries.Core
             camGO.transform.SetParent(parent);
             camGO.tag = "MainCamera";
 
-            var cam = camGO.AddComponent<Camera>();
+            camGO.AddComponent<Camera>();
             camGO.transform.position = new Vector3(0f, 8f, -8f);
             camGO.transform.LookAt(Vector3.zero);
 
