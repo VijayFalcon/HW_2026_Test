@@ -1,8 +1,8 @@
-// Builds and drives the Start, HUD, and end-of-run screens entirely at
-// runtime via UIFactory, reacting to GameManager's state/score events. The
-// end-of-run panel is shared between GameOver and Won for now (just its
-// title swaps) -- a distinct, polished win screen and the difficulty
-// picker on the Start screen are Level 3 work, not yet built here.
+// Builds and drives the Start (with a difficulty picker), HUD, and
+// end-of-run screens entirely at runtime via UIFactory, reacting to
+// GameManager's state/score events. The end-of-run panel is shared between
+// GameOver and Won for now (just its title swaps) -- a distinct, polished
+// win screen is still open work.
 
 using UnityEngine;
 using UnityEngine.UI;
@@ -23,6 +23,13 @@ namespace DoofusDiaries.UI
         private Text _endTitleText;
         private Text _finalScoreText;
         private Text _bestScoreText;
+
+        private Image _easyButtonImage;
+        private Image _mediumButtonImage;
+        private Image _hardButtonImage;
+
+        private static readonly Color UnselectedDifficultyColor = new Color(0.2f, 0.6f, 0.9f);
+        private static readonly Color SelectedDifficultyColor = new Color(0.95f, 0.75f, 0.15f);
 
         public void Bind(GameManager gameManager)
         {
@@ -82,6 +89,12 @@ namespace DoofusDiaries.UI
             var scaler = canvasGO.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080, 1920);
+            // 0.5 splits the difference between matching width and height,
+            // so layout doesn't blow out badly in either a landscape editor
+            // Game view or a portrait build -- this reference resolution
+            // was chosen portrait-first, but nothing here should assume a
+            // specific aspect ratio actually being tested.
+            scaler.matchWidthOrHeight = 0.5f;
 
             canvasGO.AddComponent<GraphicRaycaster>();
         }
@@ -89,20 +102,48 @@ namespace DoofusDiaries.UI
         private void BuildStartScreen()
         {
             _startScreen = UIFactory.Panel(_canvas.transform, "StartScreen", new Color(0f, 0f, 0f, 0.75f));
-            UIFactory.Text(_startScreen.transform, "Title", "DOOFUS DIARIES", 96, new Vector2(0, 200));
+            UIFactory.Text(_startScreen.transform, "Title", "DOOFUS DIARIES", 96, new Vector2(0, 280));
             UIFactory.Text(
                 _startScreen.transform,
                 "Subtitle",
                 "Walk across the pulpits before they collapse!\nWASD or Arrow keys to move freely.",
                 36,
-                new Vector2(0, 40));
-            UIFactory.Button(_startScreen.transform, "StartButton", "START", new Vector2(0, -220), () => _gameManager.StartGame());
+                new Vector2(0, 140));
+
+            UIFactory.Text(_startScreen.transform, "DifficultyLabel", "DIFFICULTY", 32, new Vector2(0, 20));
+
+            Vector2 difficultyButtonSize = new Vector2(210, 90);
+            Button easyButton = UIFactory.Button(_startScreen.transform, "EasyButton", "EASY", new Vector2(-240, -70), () => SelectDifficulty(Difficulty.Easy), difficultyButtonSize, 30);
+            Button mediumButton = UIFactory.Button(_startScreen.transform, "MediumButton", "MEDIUM", new Vector2(0, -70), () => SelectDifficulty(Difficulty.Medium), difficultyButtonSize, 30);
+            Button hardButton = UIFactory.Button(_startScreen.transform, "HardButton", "HARD", new Vector2(240, -70), () => SelectDifficulty(Difficulty.Hard), difficultyButtonSize, 30);
+
+            _easyButtonImage = easyButton.GetComponent<Image>();
+            _mediumButtonImage = mediumButton.GetComponent<Image>();
+            _hardButtonImage = hardButton.GetComponent<Image>();
+
+            UIFactory.Button(_startScreen.transform, "StartButton", "START", new Vector2(0, -230), () => _gameManager.StartGame());
+
+            SelectDifficulty(_gameManager.SelectedDifficulty);
+        }
+
+        private void SelectDifficulty(Difficulty difficulty)
+        {
+            _gameManager.SelectedDifficulty = difficulty;
+
+            if (_easyButtonImage != null) _easyButtonImage.color = difficulty == Difficulty.Easy ? SelectedDifficultyColor : UnselectedDifficultyColor;
+            if (_mediumButtonImage != null) _mediumButtonImage.color = difficulty == Difficulty.Medium ? SelectedDifficultyColor : UnselectedDifficultyColor;
+            if (_hardButtonImage != null) _hardButtonImage.color = difficulty == Difficulty.Hard ? SelectedDifficultyColor : UnselectedDifficultyColor;
         }
 
         private void BuildHud()
         {
             _hud = UIFactory.Panel(_canvas.transform, "HUD", new Color(0f, 0f, 0f, 0f));
-            _scoreText = UIFactory.Text(_hud.transform, "ScoreText", "Score: 0", 56, new Vector2(0, 850));
+            // Anchored to the top-center of the screen itself (not offset
+            // from canvas center), so it stays visibly near the top edge
+            // regardless of the actual aspect ratio being played in --
+            // a fixed offset from center only lines up right for the one
+            // aspect ratio it was tuned against.
+            _scoreText = UIFactory.Text(_hud.transform, "ScoreText", "Score: 0", 56, new Vector2(0, -80), new Vector2(0.5f, 1f));
         }
 
         private void BuildEndScreen()

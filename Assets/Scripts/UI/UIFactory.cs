@@ -27,13 +27,13 @@ namespace DoofusDiaries.UI
             return go;
         }
 
-        public static Text Text(Transform parent, string name, string content, int fontSize, Vector2 anchoredPos)
+        public static Text Text(Transform parent, string name, string content, int fontSize, Vector2 anchoredPos, Vector2? anchor = null)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
 
             var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchorMin = rect.anchorMax = anchor ?? new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(1000, 200);
             rect.anchoredPosition = anchoredPos;
 
@@ -49,14 +49,14 @@ namespace DoofusDiaries.UI
             return text;
         }
 
-        public static Button Button(Transform parent, string name, string label, Vector2 anchoredPos, UnityAction onClick)
+        public static Button Button(Transform parent, string name, string label, Vector2 anchoredPos, UnityAction onClick, Vector2? size = null, int labelFontSize = 44)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
 
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(320, 110);
+            rect.sizeDelta = size ?? new Vector2(320, 110);
             rect.anchoredPosition = anchoredPos;
 
             var image = go.AddComponent<Image>();
@@ -65,7 +65,7 @@ namespace DoofusDiaries.UI
             var button = go.AddComponent<Button>();
             if (onClick != null) button.onClick.AddListener(onClick);
 
-            Text(go.transform, "Label", label, 44, Vector2.zero);
+            Text(go.transform, "Label", label, labelFontSize, Vector2.zero);
 
             return button;
         }

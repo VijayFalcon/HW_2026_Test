@@ -55,7 +55,18 @@ namespace DoofusDiaries.Core
             var uiManager = uiGO.AddComponent<UIManager>();
             uiManager.Bind(gameManager);
 
+            BuildMusic(root.transform, gameManager);
+
             gameManager.Configure(config, spawner, player);
+        }
+
+        private static void BuildMusic(Transform parent, GameManager gameManager)
+        {
+            var musicGO = new GameObject("MusicController");
+            musicGO.transform.SetParent(parent);
+            musicGO.AddComponent<AudioSource>();
+            var music = musicGO.AddComponent<MusicController>();
+            music.Bind(gameManager);
         }
 
         private static void ConfigureAmbience()
