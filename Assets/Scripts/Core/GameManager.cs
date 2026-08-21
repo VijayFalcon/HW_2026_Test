@@ -30,7 +30,6 @@ namespace DoofusDiaries.Core
 
         private PulpitSpawner _spawner;
         private PlayerController _player;
-        private const int StartSlot = 0;
 
         private void Awake()
         {
@@ -50,7 +49,7 @@ namespace DoofusDiaries.Core
             _spawner = spawner;
             _player = player;
 
-            _player.OnMovedToPulpit += HandlePlayerMoved;
+            _player.OnLandedOnNewTile += HandleLandedOnNewTile;
             _player.OnFell += HandlePlayerFell;
 
             _player.SetInputEnabled(false);
@@ -61,9 +60,12 @@ namespace DoofusDiaries.Core
         public void StartGame()
         {
             Score.Reset();
-            _spawner.ResetRing();
-            _spawner.BeginSpawning(StartSlot);
-            _player.Initialize(_spawner, Config, StartSlot);
+            _spawner.ResetGrid();
+
+            Pulpit startTile = _spawner.BeginSpawning();
+            Vector3 startPosition = _spawner.GridToWorld(startTile.GridPosition) + Vector3.up * 1.5f;
+
+            _player.Initialize(Config, startPosition);
             _player.SetInputEnabled(true);
             SetState(GameState.Playing);
         }
@@ -71,7 +73,7 @@ namespace DoofusDiaries.Core
         /// <summary>Called by the Game Over screen's Restart button.</summary>
         public void RestartGame() => StartGame();
 
-        private void HandlePlayerMoved(int fromSlot, int toSlot) => Score.RegisterSuccessfulMove(fromSlot, toSlot);
+        private void HandleLandedOnNewTile(Vector2Int tileGridPosition) => Score.RegisterTileEntered(tileGridPosition);
 
         private void HandlePlayerFell()
         {

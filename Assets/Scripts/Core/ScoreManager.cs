@@ -30,15 +30,12 @@ namespace DoofusDiaries.Core
         }
 
         /// <summary>
-        /// Call this whenever the player successfully lands on a pulpit.
-        /// Only counts if it's a *different* pulpit than the one they left
-        /// (guarded here even though the ring layout makes fromSlot == toSlot
-        /// impossible today, in case movement rules change later).
+        /// Call this whenever the player lands on a tile it hasn't just come
+        /// from (PlayerController already de-duplicates repeated landings on
+        /// the same tile before raising the event that leads here).
         /// </summary>
-        public void RegisterSuccessfulMove(int fromSlot, int toSlot)
+        public void RegisterTileEntered(Vector2Int tileGridPosition)
         {
-            if (fromSlot == toSlot) return;
-
             CurrentScore++;
             OnScoreChanged?.Invoke(CurrentScore);
 
