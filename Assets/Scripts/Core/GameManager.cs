@@ -1,7 +1,8 @@
-// Top-level state machine (Start -> Playing -> GameOver -> Playing ...)
-// that wires the tile spawner, player, and score manager together, and
-// drives Start/Restart. Owns no rendering/UI directly -- UIManager reacts
-// to the events this exposes instead.
+// Top-level state machine (Start -> Playing -> GameOver/Won -> Playing ...)
+// that wires the tile spawner, player, and score manager together, drives
+// Start/Restart, and decides the win condition (score reaches the target
+// for the selected Difficulty). Owns no rendering/UI directly -- UIManager
+// reacts to the events this exposes instead.
 
 using System;
 using UnityEngine;
@@ -14,7 +15,8 @@ namespace DoofusDiaries.Core
     {
         Start,
         Playing,
-        GameOver
+        GameOver,
+        Won
     }
 
     public class GameManager : MonoBehaviour
@@ -24,6 +26,9 @@ namespace DoofusDiaries.Core
         public GameState State { get; private set; } = GameState.Start;
         public ScoreManager Score { get; private set; }
         public GameConfig Config { get; private set; }
+
+        public Difficulty SelectedDifficulty { get; set; } = Difficulty.Easy;
+        public int TargetScore => DifficultyTargets.GetTarget(SelectedDifficulty);
 
         public event Action<GameState> OnStateChanged;
 
@@ -49,6 +54,7 @@ namespace DoofusDiaries.Core
 
             _player.OnLandedOnNewTile += HandleLandedOnNewTile;
             _player.OnFell += HandlePlayerFell;
+            Score.OnScoreChanged += HandleScoreChanged;
 
             _player.SetInputEnabled(false);
             SetState(GameState.Start);
@@ -71,8 +77,20 @@ namespace DoofusDiaries.Core
 
         private void HandleLandedOnNewTile(Vector2Int tileGridPosition) => Score.RegisterTileEntered(tileGridPosition);
 
+        private void HandleScoreChanged(int score)
+        {
+            if (State != GameState.Playing) return;
+            if (score < TargetScore) return;
+
+            _spawner.StopSpawning();
+            _player.SetInputEnabled(false);
+            SetState(GameState.Won);
+        }
+
         private void HandlePlayerFell()
         {
+            if (State != GameState.Playing) return;
+
             _spawner.StopSpawning();
             _player.SetInputEnabled(false);
             SetState(GameState.GameOver);
