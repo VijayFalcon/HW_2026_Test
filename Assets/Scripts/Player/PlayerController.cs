@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 using DoofusDiaries.Core;
 using DoofusDiaries.Pulpits;
@@ -7,139 +6,92 @@ using DoofusDiaries.Pulpits;
 namespace DoofusDiaries.Player
 {
     /// <summary>
-    /// Handles input and movement for "Doofus". The player hops between
-    /// adjacent ring slots; travel time is derived from world distance and
-    /// config.PlayerSpeed, so the JSON-configured speed directly drives how
-    /// long a hop is exposed to risk (the target pulpit could collapse
-    /// mid-flight -- handled below).
+    /// Free-roaming movement for "Doofus", driven by an actual Rigidbody
+    /// rather than a scripted hop-to-slot animation. WASD/arrow input sets
+    /// horizontal velocity directly (config.PlayerSpeed units/sec); gravity
+    /// handles everything vertical, so when a tile disappears from under the
+    /// player, physics -- not game-logic bookkeeping -- makes them fall.
+    ///
+    /// Landing on a new tile is detected via physical collision with that
+    /// tile's collider (both are solid, so this is an ordinary
+    /// OnCollisionEnter, not a trigger). Falling into the pit is detected
+    /// via a dedicated trigger volume (see PitVolume) far below the grid.
     /// </summary>
+    [RequireComponent(typeof(Rigidbody))]
     public class PlayerController : MonoBehaviour
     {
-        /// <summary>Raised after a successful landing: (fromSlot, toSlot).</summary>
-        public event Action<int, int> OnMovedToPulpit;
+        /// <summary>Raised the first time the player lands on a tile different from the last one it landed on.</summary>
+        public event Action<Vector2Int> OnLandedOnNewTile;
 
-        /// <summary>Raised once when the player falls (game over).</summary>
+        /// <summary>Raised once when the player falls into the pit (game over).</summary>
         public event Action OnFell;
 
-        public int CurrentSlot { get; private set; }
-
-        private PulpitSpawner _spawner;
+        private Rigidbody _rigidbody;
         private GameConfig _config;
-        private bool _isMoving;
         private bool _alive;
         private bool _inputEnabled = true;
-        private Coroutine _moveRoutine;
+        private Vector2Int? _lastScoredTile;
 
-        /// <summary>(Re)initializes the player onto a starting slot. Safe to call again on restart.</summary>
-        public void Initialize(PulpitSpawner spawner, GameConfig config, int startSlot)
+        private void Awake()
         {
-            if (_spawner != null)
-            {
-                _spawner.OnPulpitCollapsed -= HandlePulpitCollapsed;
-            }
+            _rigidbody = GetComponent<Rigidbody>();
+            _rigidbody.useGravity = true;
+            _rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
+            // NOTE: Rigidbody.drag/.velocity were renamed to linearDamping/
+            // linearVelocity starting with Unity 6; the old names used here
+            // still compile (obsolete-but-functional) on that version and
+            // are the only names available on older Editors, so they're the
+            // safer choice for a project whose exact Unity version may vary.
+            _rigidbody.drag = 0.5f;
+        }
 
-            _spawner = spawner;
+        /// <summary>(Re)initializes the player at a starting world position. Safe to call again on restart.</summary>
+        public void Initialize(GameConfig config, Vector3 startPosition)
+        {
             _config = config;
-            CurrentSlot = startSlot;
             _alive = true;
-            _isMoving = false;
+            _lastScoredTile = null;
 
-            if (_moveRoutine != null)
-            {
-                StopCoroutine(_moveRoutine);
-                _moveRoutine = null;
-            }
-
-            transform.position = _spawner.SlotPositions[startSlot] + Vector3.up * 0.6f;
-            _spawner.OnPulpitCollapsed += HandlePulpitCollapsed;
+            _rigidbody.velocity = Vector3.zero;
+            _rigidbody.angularVelocity = Vector3.zero;
+            transform.position = startPosition;
         }
 
         public void SetInputEnabled(bool enabled) => _inputEnabled = enabled;
 
-        private void OnDestroy()
+        private void FixedUpdate()
         {
-            if (_spawner != null)
-            {
-                _spawner.OnPulpitCollapsed -= HandlePulpitCollapsed;
-            }
+            if (!_alive || !_inputEnabled) return;
+
+            float x = Input.GetAxis("Horizontal"); // A/D and Left/Right arrows by default
+            float z = Input.GetAxis("Vertical");   // W/S and Up/Down arrows by default
+
+            Vector3 move = new Vector3(x, 0f, z);
+            if (move.sqrMagnitude > 1f) move.Normalize(); // don't let diagonal movement exceed configured speed
+
+            Vector3 horizontal = move * _config.PlayerSpeed;
+            _rigidbody.velocity = new Vector3(horizontal.x, _rigidbody.velocity.y, horizontal.z);
         }
 
-        private void Update()
-        {
-            if (!_alive || !_inputEnabled || _isMoving || _spawner == null) return;
-
-            int direction = 0;
-            if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) direction = 1;
-            else if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A)) direction = -1;
-
-            if (direction != 0)
-            {
-                TryMove(direction);
-            }
-        }
-
-        private void TryMove(int direction)
-        {
-            int targetSlot = direction > 0
-                ? _spawner.GetSlotToRight(CurrentSlot)
-                : _spawner.GetSlotToLeft(CurrentSlot);
-
-            Pulpit targetPulpit = _spawner.GetPulpitAt(targetSlot);
-            if (targetPulpit == null)
-            {
-                // Nothing to land on right now -- reject the move silently
-                // rather than letting the player walk off into thin air.
-                return;
-            }
-
-            _moveRoutine = StartCoroutine(MoveTo(targetSlot));
-        }
-
-        private IEnumerator MoveTo(int targetSlot)
-        {
-            _isMoving = true;
-            int fromSlot = CurrentSlot;
-            Vector3 start = transform.position;
-            Vector3 end = _spawner.SlotPositions[targetSlot] + Vector3.up * 0.6f;
-            float distance = Vector3.Distance(start, end);
-            float duration = distance / Mathf.Max(0.01f, _config.PlayerSpeed);
-            float elapsed = 0f;
-
-            while (elapsed < duration)
-            {
-                if (!_alive) yield break; // died mid-flight, e.g. the origin pulpit isn't relevant anymore
-
-                elapsed += Time.deltaTime;
-                transform.position = Vector3.Lerp(start, end, Mathf.Clamp01(elapsed / duration));
-                yield return null;
-            }
-
-            // The destination may have collapsed while we were travelling to it.
-            if (_spawner.GetPulpitAt(targetSlot) == null)
-            {
-                Die();
-                yield break;
-            }
-
-            transform.position = end;
-            CurrentSlot = targetSlot;
-            _isMoving = false;
-            _moveRoutine = null;
-
-            if (fromSlot != targetSlot)
-            {
-                OnMovedToPulpit?.Invoke(fromSlot, targetSlot);
-            }
-        }
-
-        private void HandlePulpitCollapsed(Pulpit pulpit)
+        private void OnCollisionEnter(Collision collision)
         {
             if (!_alive) return;
 
-            // Only fatal if it's the pulpit we are currently standing still
-            // on. Mid-air travel is handled separately in MoveTo, and a
-            // collapsing pulpit we've already left behind is irrelevant.
-            if (!_isMoving && pulpit.SlotIndex == CurrentSlot)
+            Pulpit tile = collision.collider.GetComponent<Pulpit>();
+            if (tile == null) return;
+
+            if (_lastScoredTile == null || _lastScoredTile.Value != tile.GridPosition)
+            {
+                _lastScoredTile = tile.GridPosition;
+                OnLandedOnNewTile?.Invoke(tile.GridPosition);
+            }
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (!_alive) return;
+
+            if (other.GetComponent<PitVolume>() != null)
             {
                 Die();
             }
@@ -149,13 +101,7 @@ namespace DoofusDiaries.Player
         {
             if (!_alive) return;
             _alive = false;
-
-            if (_moveRoutine != null)
-            {
-                StopCoroutine(_moveRoutine);
-                _moveRoutine = null;
-            }
-
+            _rigidbody.velocity = Vector3.zero;
             OnFell?.Invoke();
         }
     }
