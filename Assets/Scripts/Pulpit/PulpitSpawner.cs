@@ -6,144 +6,171 @@ using DoofusDiaries.Core;
 namespace DoofusDiaries.Pulpits
 {
     /// <summary>
-    /// Owns a fixed ring of "slots" arranged in a circle around the origin.
-    /// At a fixed interval (config.PulpitSpawnTime) it spawns a new pulpit
-    /// into a random currently-empty slot. Each pulpit is handed a random
-    /// lifetime within [MinPulpitDestroyTime, MaxPulpitDestroyTime] and
-    /// manages its own countdown/destruction (see Pulpit.cs).
-    ///
-    /// This is the "platform placement" system for the level: placement is
-    /// procedural rather than a fixed layout, driven entirely by the timing
-    /// values in doofus_diary.json (see README for why -- the provided JSON
-    /// has no explicit position/layout array).
+    /// Spawns square tiles ("pulpits") on a grid. At most two tiles exist at
+    /// once, matching the brief ("Only two Pulpits can exist simultaneously").
+    /// A tile spawns the next one -- adjacent to itself, never on top of the
+    /// other active tile -- once its own age reaches config.PulpitSpawnTime.
+    /// That produces the intended chain: TileA spawns; a couple of seconds
+    /// later TileB appears next to it (now 2 active); TileA eventually
+    /// collapses on its own random timer (back to 1 active); TileB spawns
+    /// TileC; and so on.
     /// </summary>
     public class PulpitSpawner : MonoBehaviour
     {
-        [Tooltip("Number of fixed positions arranged around the ring.")]
-        public int SlotCount = 8;
+        [Tooltip("World size of one square tile, and the grid spacing between tile centers.")]
+        public float TileSize = 9f;
 
-        [Tooltip("Radius of the ring, in world units.")]
-        public float RingRadius = 4f;
+        [Tooltip("How many grid cells from the centre the play area extends in each direction, keeping the level inside the enclosed room.")]
+        public int GridHalfExtent = 8;
 
-        /// <summary>Optional prefab to spawn instead of a bare primitive cylinder.</summary>
+        /// <summary>Optional prefab to spawn instead of a bare primitive cube.</summary>
         public GameObject PulpitPrefabTemplate;
 
         public event Action<Pulpit> OnPulpitCollapsed;
+        public event Action<Pulpit> OnPulpitSpawned;
 
-        public IReadOnlyList<Vector3> SlotPositions => _slotPositions;
+        private static readonly Vector2Int[] NeighborOffsets =
+        {
+            new Vector2Int(1, 0), new Vector2Int(-1, 0),
+            new Vector2Int(0, 1), new Vector2Int(0, -1)
+        };
 
         private GameConfig _config;
-        private Vector3[] _slotPositions;
-        private Pulpit[] _slotOccupants;
-        private float _spawnTimer;
+        private readonly List<Pulpit> _activeTiles = new List<Pulpit>();
         private bool _running;
 
         public void Initialize(GameConfig config)
         {
             _config = config;
-
-            SlotCount = Mathf.Max(2, SlotCount); // a ring needs at least 2 slots to mean anything
-            _slotPositions = new Vector3[SlotCount];
-            _slotOccupants = new Pulpit[SlotCount];
-
-            for (int i = 0; i < SlotCount; i++)
-            {
-                float angle = i * Mathf.PI * 2f / SlotCount;
-                _slotPositions[i] = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * RingRadius;
-            }
         }
 
-        /// <summary>Clears any leftover pulpits from a previous run so a restart starts from a clean ring.</summary>
-        public void ResetRing()
+        /// <summary>Grid cell -> world position (tiles sit at y = 0; PulpitSpawner doesn't own tile thickness/visuals beyond that).</summary>
+        public Vector3 GridToWorld(Vector2Int gridPos) => new Vector3(gridPos.x * TileSize, 0f, gridPos.y * TileSize);
+
+        /// <summary>Destroys any leftover tiles so a restart begins from a clean grid.</summary>
+        public void ResetGrid()
         {
             _running = false;
-            _spawnTimer = 0f;
-
-            if (_slotOccupants == null) return;
-
-            for (int i = 0; i < _slotOccupants.Length; i++)
+            foreach (Pulpit tile in _activeTiles)
             {
-                Pulpit occupant = _slotOccupants[i];
-                if (occupant == null) continue;
-
-                occupant.OnCollapsed -= HandlePulpitCollapsed;
-                Destroy(occupant.gameObject);
-                _slotOccupants[i] = null;
+                if (tile == null) continue;
+                tile.OnCollapsed -= HandleTileCollapsed;
+                Destroy(tile.gameObject);
             }
+            _activeTiles.Clear();
         }
 
-        public void BeginSpawning(int guaranteedStartSlot)
+        /// <summary>Spawns the very first tile at the grid origin and starts the chain. Returns that tile so the caller can position the player on it.</summary>
+        public Pulpit BeginSpawning()
         {
             _running = true;
-            _spawnTimer = 0f;
-            SpawnAt(Mathf.Clamp(guaranteedStartSlot, 0, SlotCount - 1));
+            return SpawnAt(Vector2Int.zero);
         }
 
         public void StopSpawning() => _running = false;
 
         private void Update()
         {
-            if (!_running) return;
+            if (!_running || _activeTiles.Count == 0 || _activeTiles.Count >= 2) return;
 
-            _spawnTimer += Time.deltaTime;
-            if (_spawnTimer >= _config.PulpitSpawnTime)
+            // The most recently spawned (and still active) tile is the one
+            // responsible for triggering the next spawn, once it reaches
+            // config.PulpitSpawnTime seconds of its own age.
+            Pulpit mostRecent = _activeTiles[_activeTiles.Count - 1];
+            if (mostRecent == null || mostRecent.HasTriggeredNextSpawn) return;
+
+            if (mostRecent.Age >= _config.PulpitSpawnTime)
             {
-                _spawnTimer = 0f;
-                TrySpawnInRandomEmptySlot();
+                mostRecent.HasTriggeredNextSpawn = true;
+                SpawnAdjacentTo(mostRecent.GridPosition);
             }
         }
 
-        private void TrySpawnInRandomEmptySlot()
+        private void SpawnAdjacentTo(Vector2Int origin)
         {
-            List<int> emptySlots = new List<int>();
-            for (int i = 0; i < SlotCount; i++)
+            List<Vector2Int> candidates = new List<Vector2Int>();
+            foreach (Vector2Int offset in NeighborOffsets)
             {
-                if (_slotOccupants[i] == null) emptySlots.Add(i);
+                Vector2Int candidate = origin + offset;
+                if (!InBounds(candidate)) continue;
+                if (IsOccupied(candidate)) continue;
+                candidates.Add(candidate);
             }
 
-            if (emptySlots.Count == 0) return; // ring is full this tick; nothing to do
+            if (candidates.Count == 0)
+            {
+                // Extremely unlikely with only ever 2 tiles active, but if
+                // every neighbor is blocked or off the edge of the room,
+                // relax the occupancy rule rather than silently skip the
+                // player's next platform.
+                Debug.LogWarning("[PulpitSpawner] No unoccupied neighbor found for the next tile; relaxing the occupancy rule.");
+                foreach (Vector2Int offset in NeighborOffsets)
+                {
+                    Vector2Int candidate = origin + offset;
+                    if (InBounds(candidate)) candidates.Add(candidate);
+                }
+            }
 
-            int slot = emptySlots[UnityEngine.Random.Range(0, emptySlots.Count)];
-            SpawnAt(slot);
+            if (candidates.Count == 0)
+            {
+                Debug.LogWarning("[PulpitSpawner] GridHalfExtent is too small to place another tile at all; skipping this spawn.");
+                return;
+            }
+
+            Vector2Int chosen = candidates[UnityEngine.Random.Range(0, candidates.Count)];
+            SpawnAt(chosen);
         }
 
-        private Pulpit SpawnAt(int slot)
+        private bool InBounds(Vector2Int pos) =>
+            Mathf.Abs(pos.x) <= GridHalfExtent && Mathf.Abs(pos.y) <= GridHalfExtent;
+
+        private bool IsOccupied(Vector2Int pos)
+        {
+            foreach (Pulpit tile in _activeTiles)
+            {
+                if (tile != null && tile.GridPosition == pos) return true;
+            }
+            return false;
+        }
+
+        private Pulpit SpawnAt(Vector2Int gridPos)
         {
             GameObject go = PulpitPrefabTemplate != null
                 ? Instantiate(PulpitPrefabTemplate)
-                : GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                : GameObject.CreatePrimitive(PrimitiveType.Cube);
 
-            go.name = $"Pulpit_{slot}";
+            go.name = $"Pulpit_{gridPos.x}_{gridPos.y}";
             go.transform.SetParent(transform, false);
-            go.transform.localPosition = _slotPositions[slot];
-            go.transform.localScale = new Vector3(1.2f, 0.2f, 1.2f);
+            go.transform.position = GridToWorld(gridPos);
+            // Slightly larger than the grid spacing so adjacent tiles'
+            // colliders overlap a hair rather than leaving a seam a moving
+            // Rigidbody could catch its collider on.
+            go.transform.localScale = new Vector3(TileSize * 1.02f, 1f, TileSize * 1.02f);
 
             Pulpit pulpit = go.GetComponent<Pulpit>();
             if (pulpit == null) pulpit = go.AddComponent<Pulpit>();
 
-            pulpit.Initialize(slot, _config.RandomDestroyTime());
-            pulpit.OnCollapsed += HandlePulpitCollapsed;
+            pulpit.Initialize(gridPos, _config.RandomDestroyTime());
+            pulpit.OnCollapsed += HandleTileCollapsed;
 
-            _slotOccupants[slot] = pulpit;
+            _activeTiles.Add(pulpit);
+            OnPulpitSpawned?.Invoke(pulpit);
             return pulpit;
         }
 
-        private void HandlePulpitCollapsed(Pulpit pulpit)
+        private void HandleTileCollapsed(Pulpit pulpit)
         {
-            if (_slotOccupants[pulpit.SlotIndex] == pulpit)
-            {
-                _slotOccupants[pulpit.SlotIndex] = null;
-            }
+            _activeTiles.Remove(pulpit);
             OnPulpitCollapsed?.Invoke(pulpit);
         }
 
-        public Pulpit GetPulpitAt(int slot)
+        public Pulpit GetTileAt(Vector2Int gridPos)
         {
-            if (_slotOccupants == null || slot < 0 || slot >= _slotOccupants.Length) return null;
-            return _slotOccupants[slot];
+            foreach (Pulpit tile in _activeTiles)
+            {
+                if (tile != null && tile.GridPosition == gridPos) return tile;
+            }
+            return null;
         }
-
-        public int GetSlotToLeft(int slot) => (slot - 1 + SlotCount) % SlotCount;
-        public int GetSlotToRight(int slot) => (slot + 1) % SlotCount;
     }
 }

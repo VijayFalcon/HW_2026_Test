@@ -4,44 +4,59 @@ using UnityEngine;
 namespace DoofusDiaries.Pulpits
 {
     /// <summary>
-    /// A single platform ("pulpit") the player can stand on. Once spawned it
-    /// counts down its own lifetime and self-destructs, independent of
-    /// whether the player is currently standing on it -- that ticking clock
-    /// is the core pressure of the game. It visually warns (color change)
-    /// before collapsing so the player has a fair chance to react.
+    /// A single square tile ("pulpit") the player can stand on, sitting at a
+    /// fixed grid cell. It counts down its own lifetime and collapses
+    /// independent of whether the player is on it -- that ticking clock is
+    /// the core pressure of the game.
+    ///
+    /// Collapsing disables the collider and renderer on the same frame the
+    /// lifetime expires, rather than waiting on a destroy animation. That
+    /// means a Rigidbody player standing on this tile loses support and
+    /// starts falling on the very next physics step, purely from gravity --
+    /// no manual "was I still supported" bookkeeping required anywhere else.
     /// </summary>
+    [RequireComponent(typeof(Collider))]
     public class Pulpit : MonoBehaviour
     {
-        private static readonly Color NormalColor = new Color(0.55f, 0.35f, 0.18f);
-        private static readonly Color WarningColor = new Color(0.85f, 0.2f, 0.15f);
-        private const float WarningThresholdFraction = 0.75f;
+        private static readonly Color NormalColor = new Color(0.1f, 0.85f, 0.35f); // green, per the brief
+        private static readonly Color WarningColor = new Color(0.9f, 0.15f, 0.15f);
+        private const float WarningThresholdFraction = 0.7f;
 
-        public int SlotIndex { get; private set; }
+        /// <summary>This tile's position on the spawn grid (see PulpitSpawner.GridToWorld).</summary>
+        public Vector2Int GridPosition { get; private set; }
 
-        /// <summary>Fired once, shortly before Collapse(), so listeners can play a warning cue.</summary>
-        public event Action<Pulpit> OnAboutToCollapse;
+        /// <summary>
+        /// Set by PulpitSpawner once this tile has already spawned the next
+        /// one in the chain, so it doesn't try to trigger a second spawn.
+        /// </summary>
+        public bool HasTriggeredNextSpawn { get; set; }
 
-        /// <summary>Fired exactly once when this pulpit's lifetime expires.</summary>
+        /// <summary>How long, in seconds, this tile has been alive.</summary>
+        public float Age { get; private set; }
+
+        /// <summary>Fired exactly once when this tile's lifetime expires.</summary>
         public event Action<Pulpit> OnCollapsed;
 
         private float _lifetime;
-        private float _timer;
         private bool _collapsing;
         private bool _warned;
         private Renderer _cachedRenderer;
+        private Collider _cachedCollider;
 
         /// <summary>Must be called immediately after instantiation, before Update() runs.</summary>
-        public void Initialize(int slotIndex, float lifetime)
+        public void Initialize(Vector2Int gridPosition, float lifetime)
         {
-            SlotIndex = slotIndex;
-            // Guard against a bad/zero lifetime slipping through so a pulpit
+            GridPosition = gridPosition;
+            // Guard against a bad/zero lifetime slipping through so a tile
             // never lives forever or collapses on the same frame it spawns.
             _lifetime = Mathf.Max(0.25f, lifetime);
-            _timer = 0f;
+            Age = 0f;
             _collapsing = false;
             _warned = false;
+            HasTriggeredNextSpawn = false;
 
             _cachedRenderer = GetComponentInChildren<Renderer>();
+            _cachedCollider = GetComponent<Collider>();
             if (_cachedRenderer != null)
             {
                 _cachedRenderer.material.color = NormalColor;
@@ -52,19 +67,18 @@ namespace DoofusDiaries.Pulpits
         {
             if (_collapsing) return;
 
-            _timer += Time.deltaTime;
+            Age += Time.deltaTime;
 
-            if (!_warned && _timer >= _lifetime * WarningThresholdFraction)
+            if (!_warned && Age >= _lifetime * WarningThresholdFraction)
             {
                 _warned = true;
-                OnAboutToCollapse?.Invoke(this);
                 if (_cachedRenderer != null)
                 {
                     _cachedRenderer.material.color = WarningColor;
                 }
             }
 
-            if (_timer >= _lifetime)
+            if (Age >= _lifetime)
             {
                 Collapse();
             }
@@ -74,10 +88,15 @@ namespace DoofusDiaries.Pulpits
         {
             if (_collapsing) return;
             _collapsing = true;
+
+            // Remove support and visibility on the same frame -- anything
+            // standing here (physics) starts falling immediately, and the
+            // tile visually vanishes rather than lingering.
+            if (_cachedCollider != null) _cachedCollider.enabled = false;
+            if (_cachedRenderer != null) _cachedRenderer.enabled = false;
+
             OnCollapsed?.Invoke(this);
-            // Small delay leaves room for a future collapse animation/VFX;
-            // logically the pulpit is already gone (listeners were notified above).
-            Destroy(gameObject, 0.15f);
+            Destroy(gameObject, 0.5f);
         }
     }
 }
