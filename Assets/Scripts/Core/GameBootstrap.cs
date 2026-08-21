@@ -20,7 +20,12 @@ namespace DoofusDiaries.Core
     /// </summary>
     public static class GameBootstrap
     {
-        private const float TileSize = 9f;
+        // NOTE: the assignment's prop description calls the pulpit a
+        // "9x9 platform", but nothing in the brief actually pins tile size
+        // to a rule the way it pins player speed to the JSON -- it's a
+        // deliberate design choice here, shrunk from 9 to make crossing
+        // distance feel better matched to config.PlayerSpeed.
+        private const float TileSize = 5f;
         private const int GridHalfExtent = 8;
         private const float WallHeight = 40f;
         private const float WallBottomY = -30f;

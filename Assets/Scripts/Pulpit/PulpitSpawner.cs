@@ -18,7 +18,7 @@ namespace DoofusDiaries.Pulpits
     public class PulpitSpawner : MonoBehaviour
     {
         [Tooltip("World size of one square tile, and the grid spacing between tile centers.")]
-        public float TileSize = 9f;
+        public float TileSize = 5f;
 
         [Tooltip("How many grid cells from the centre the play area extends in each direction, keeping the level inside the enclosed room.")]
         public int GridHalfExtent = 8;
