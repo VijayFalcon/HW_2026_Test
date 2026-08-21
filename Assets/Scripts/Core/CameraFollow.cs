@@ -15,9 +15,12 @@ namespace DoofusDiaries.Core
     public class CameraFollow : MonoBehaviour
     {
         public Transform Target;
-        public Vector3 Offset = new Vector3(0f, 7f, -9f);
+        public Vector3 Offset = new Vector3(0f, 4f, -5f);
         public float LookAheadHeight = 1.5f;
-        public float SmoothTime = 0.15f;
+        // Tightened from 0.15 -- a smaller SmoothTime means the camera
+        // catches up to the target faster, so movement doesn't look
+        // laggier/slower than it actually is.
+        public float SmoothTime = 0.08f;
 
         private Vector3 _velocity;
 

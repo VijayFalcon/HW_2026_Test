@@ -63,8 +63,13 @@ namespace DoofusDiaries.Player
         {
             if (!_alive || !_inputEnabled) return;
 
-            float x = Input.GetAxis("Horizontal"); // A/D and Left/Right arrows by default
-            float z = Input.GetAxis("Vertical");   // W/S and Up/Down arrows by default
+            // Raw axes: full speed the instant a key is pressed, zero the
+            // instant it's released. The smoothed "Horizontal"/"Vertical"
+            // axes ramp up over a few frames (Input Manager's default
+            // sensitivity/gravity settings), which reads as input lag on
+            // top of whatever config.PlayerSpeed already is.
+            float x = Input.GetAxisRaw("Horizontal"); // A/D and Left/Right arrows by default
+            float z = Input.GetAxisRaw("Vertical");   // W/S and Up/Down arrows by default
 
             Vector3 move = new Vector3(x, 0f, z);
             if (move.sqrMagnitude > 1f) move.Normalize(); // don't let diagonal movement exceed configured speed
