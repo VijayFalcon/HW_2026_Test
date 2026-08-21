@@ -40,20 +40,28 @@ it is timing data, not coordinates. The file is bundled at
   freely (any direction, not locked to a lane) via a Rigidbody at
   `player_data.speed`; when a tile disappears from underfoot, gravity (not
   scripted logic) makes Doofus fall.
-- **Level 2 -- score on successful move:** `PlayerController.OnLandedOnNewTile`
-  fires the first time Doofus's collider physically touches a tile
-  different from the last one it landed on; `GameManager` forwards that to
-  `ScoreManager.RegisterTileEntered`, which also tracks and persists a best
-  score.
-- **Level 3 -- Start / Game Over screens:** `UIManager` builds a Start
-  screen (title + Start button), an in-game HUD (live score), and a Game
-  Over screen (final score, best score, Restart button) entirely at
-  runtime via `UIFactory`, driven by `GameManager`'s state machine
-  (`Start -> Playing -> GameOver -> Playing ...`).
+- **Level 2 -- score on successful move, difficulty targets:**
+  `PlayerController.OnLandedOnNewTile` fires the first time Doofus's
+  collider physically touches a tile different from the last one it landed
+  on; `GameManager` forwards that to `ScoreManager.RegisterTileEntered`,
+  which also tracks and persists a best score. `Difficulty`/`DifficultyTargets`
+  define the three survival targets (Easy 50, Medium 100, Hard 200);
+  `GameManager.SelectedDifficulty` (defaults to Easy for now) determines
+  `TargetScore`, and reaching it while `Playing` transitions to a new `Won`
+  state, distinct from `GameOver`.
+- **Level 3 -- Start / end-of-run screens:** `UIManager` builds a Start
+  screen (title + Start button), an in-game HUD (live score / target), and
+  a shared end-of-run screen (title, final score, best score, Restart
+  button) entirely at runtime via `UIFactory`, driven by `GameManager`'s
+  state machine (`Start -> Playing -> GameOver/Won -> Playing ...`).
 
-Difficulty levels with survival targets (Easy/Medium/Hard) and background
-music are planned as follow-up passes on top of this, by request -- not yet
-in this build.
+Two things are still open, by request: a difficulty-picker on the Start
+screen (Easy/Medium/Hard buttons setting `GameManager.SelectedDifficulty`
+before `StartGame()`) and a distinct, polished win screen instead of the
+shared end-of-run panel with a swapped title -- both Level 3 work, not yet
+built. `SelectedDifficulty` currently defaults to `Easy` so the win
+condition itself is already testable. Background music is also still
+pending.
 
 ## The world
 
