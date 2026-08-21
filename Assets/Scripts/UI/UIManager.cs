@@ -1,5 +1,8 @@
-// Builds and drives the Start, HUD, and Game Over screens entirely at
-// runtime via UIFactory, reacting to GameManager's state/score events.
+// Builds and drives the Start, HUD, and end-of-run screens entirely at
+// runtime via UIFactory, reacting to GameManager's state/score events. The
+// end-of-run panel is shared between GameOver and Won for now (just its
+// title swaps) -- a distinct, polished win screen and the difficulty
+// picker on the Start screen are Level 3 work, not yet built here.
 
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,9 +17,10 @@ namespace DoofusDiaries.UI
 
         private GameObject _startScreen;
         private GameObject _hud;
-        private GameObject _gameOverScreen;
+        private GameObject _endScreen;
 
         private Text _scoreText;
+        private Text _endTitleText;
         private Text _finalScoreText;
         private Text _bestScoreText;
 
@@ -27,7 +31,7 @@ namespace DoofusDiaries.UI
             BuildCanvas();
             BuildStartScreen();
             BuildHud();
-            BuildGameOverScreen();
+            BuildEndScreen();
 
             _gameManager.OnStateChanged += HandleStateChanged;
             _gameManager.Score.OnScoreChanged += HandleScoreChanged;
@@ -44,24 +48,27 @@ namespace DoofusDiaries.UI
 
         private void HandleStateChanged(GameState state)
         {
+            bool ended = state == GameState.GameOver || state == GameState.Won;
+
             _startScreen.SetActive(state == GameState.Start);
             _hud.SetActive(state == GameState.Playing);
-            _gameOverScreen.SetActive(state == GameState.GameOver);
+            _endScreen.SetActive(ended);
 
-            if (state == GameState.GameOver)
+            if (ended)
             {
-                _finalScoreText.text = $"Score: {_gameManager.Score.CurrentScore}";
+                _endTitleText.text = state == GameState.Won ? "YOU WIN!" : "GAME OVER";
+                _finalScoreText.text = $"Score: {_gameManager.Score.CurrentScore} / {_gameManager.TargetScore}";
                 _bestScoreText.text = $"Best: {_gameManager.Score.BestScore}";
             }
             else if (state == GameState.Playing)
             {
-                _scoreText.text = $"Score: {_gameManager.Score.CurrentScore}";
+                _scoreText.text = $"Score: {_gameManager.Score.CurrentScore} / {_gameManager.TargetScore}";
             }
         }
 
         private void HandleScoreChanged(int score)
         {
-            _scoreText.text = $"Score: {score}";
+            _scoreText.text = $"Score: {score} / {_gameManager.TargetScore}";
         }
 
         private void BuildCanvas()
@@ -98,13 +105,13 @@ namespace DoofusDiaries.UI
             _scoreText = UIFactory.Text(_hud.transform, "ScoreText", "Score: 0", 56, new Vector2(0, 850));
         }
 
-        private void BuildGameOverScreen()
+        private void BuildEndScreen()
         {
-            _gameOverScreen = UIFactory.Panel(_canvas.transform, "GameOverScreen", new Color(0f, 0f, 0f, 0.85f));
-            UIFactory.Text(_gameOverScreen.transform, "GameOverTitle", "GAME OVER", 96, new Vector2(0, 260));
-            _finalScoreText = UIFactory.Text(_gameOverScreen.transform, "FinalScore", "Score: 0", 48, new Vector2(0, 100));
-            _bestScoreText = UIFactory.Text(_gameOverScreen.transform, "BestScore", "Best: 0", 40, new Vector2(0, 30));
-            UIFactory.Button(_gameOverScreen.transform, "RestartButton", "RESTART", new Vector2(0, -200), () => _gameManager.RestartGame());
+            _endScreen = UIFactory.Panel(_canvas.transform, "EndScreen", new Color(0f, 0f, 0f, 0.85f));
+            _endTitleText = UIFactory.Text(_endScreen.transform, "EndTitle", "GAME OVER", 96, new Vector2(0, 260));
+            _finalScoreText = UIFactory.Text(_endScreen.transform, "FinalScore", "Score: 0", 48, new Vector2(0, 100));
+            _bestScoreText = UIFactory.Text(_endScreen.transform, "BestScore", "Best: 0", 40, new Vector2(0, 30));
+            UIFactory.Button(_endScreen.transform, "RestartButton", "RESTART", new Vector2(0, -200), () => _gameManager.RestartGame());
         }
     }
 }
