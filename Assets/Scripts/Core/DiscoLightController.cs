@@ -1,14 +1,11 @@
+// Cycles a set of colored point lights through hue rotations at different
+// speeds/phases for a disco-room look. These lights are the room's only
+// light source (see GameBootstrap.ConfigureAmbience).
+
 using UnityEngine;
 
 namespace DoofusDiaries.Core
 {
-    /// <summary>
-    /// Cycles a handful of colored point lights through hue rotations at
-    /// different speeds/phases for a simple disco-club feel, replacing the
-    /// single outdoor directional sun light the original prototype used.
-    /// The room itself is otherwise unlit (see GameBootstrap.ConfigureAmbience),
-    /// so these lights are the only source of illumination.
-    /// </summary>
     public class DiscoLightController : MonoBehaviour
     {
         private Light[] _lights;

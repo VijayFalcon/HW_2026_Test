@@ -1,3 +1,8 @@
+// Top-level state machine (Start -> Playing -> GameOver -> Playing ...)
+// that wires the tile spawner, player, and score manager together, and
+// drives Start/Restart. Owns no rendering/UI directly -- UIManager reacts
+// to the events this exposes instead.
+
 using System;
 using UnityEngine;
 using DoofusDiaries.Pulpits;
@@ -12,12 +17,6 @@ namespace DoofusDiaries.Core
         GameOver
     }
 
-    /// <summary>
-    /// Top-level orchestrator and state machine (Start -> Playing -> GameOver
-    /// -> Playing ...). Owns nothing about rendering/UI directly; instead it
-    /// exposes OnStateChanged and a ScoreManager that UIManager subscribes to.
-    /// This keeps gameplay and presentation decoupled and independently testable.
-    /// </summary>
     public class GameManager : MonoBehaviour
     {
         public static GameManager Instance { get; private set; }
@@ -42,7 +41,6 @@ namespace DoofusDiaries.Core
             Score = new ScoreManager();
         }
 
-        /// <summary>Wires this manager to its gameplay systems. Call once, right after everything is instantiated.</summary>
         public void Configure(GameConfig config, PulpitSpawner spawner, PlayerController player)
         {
             Config = config;
@@ -56,7 +54,6 @@ namespace DoofusDiaries.Core
             SetState(GameState.Start);
         }
 
-        /// <summary>Called by the Start screen's Start button (and by RestartGame).</summary>
         public void StartGame()
         {
             Score.Reset();
@@ -70,7 +67,6 @@ namespace DoofusDiaries.Core
             SetState(GameState.Playing);
         }
 
-        /// <summary>Called by the Game Over screen's Restart button.</summary>
         public void RestartGame() => StartGame();
 
         private void HandleLandedOnNewTile(Vector2Int tileGridPosition) => Score.RegisterTileEntered(tileGridPosition);

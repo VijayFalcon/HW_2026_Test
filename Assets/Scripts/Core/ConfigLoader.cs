@@ -1,23 +1,14 @@
+// Reads and validates doofus_diary.json from StreamingAssets, falling back
+// to DefaultGameConfig (with a logged warning) for every failure mode:
+// missing file, unreadable file, invalid JSON, missing fields, non-positive
+// values, or min/max destroy times given in the wrong order.
+
 using System;
 using System.IO;
 using UnityEngine;
 
 namespace DoofusDiaries.Core
 {
-    /// <summary>
-    /// Loads and validates doofus_diary.json from StreamingAssets.
-    ///
-    /// Every failure mode is handled gracefully by falling back to
-    /// DefaultGameConfig and logging a warning, rather than throwing and
-    /// leaving the game unplayable:
-    ///   - file missing
-    ///   - file unreadable (IO/permission error)
-    ///   - file present but not valid JSON
-    ///   - JSON valid but missing "player_data" / "pulpit_data" objects
-    ///   - JSON valid but missing individual numeric fields
-    ///   - numeric fields present but zero/negative (nonsensical for a timer or speed)
-    ///   - min_pulpit_destroy_time greater than max_pulpit_destroy_time
-    /// </summary>
     public static class ConfigLoader
     {
         private const string ConfigFileName = "doofus_diary.json";

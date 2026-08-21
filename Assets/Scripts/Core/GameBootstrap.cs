@@ -1,3 +1,8 @@
+// Builds the entire game world at runtime the moment a scene loads (no
+// manual scene setup needed): config, the enclosed room, disco lights, the
+// pit trigger, the tile grid, the player, the follow camera, the UI, and
+// the game manager -- all created from code and wired together.
+
 using UnityEngine;
 using UnityEngine.EventSystems;
 using DoofusDiaries.Pulpits;
@@ -6,30 +11,14 @@ using DoofusDiaries.UI;
 
 namespace DoofusDiaries.Core
 {
-    /// <summary>
-    /// Entry point for the whole game. Requires zero manual scene setup: it
-    /// spins itself up automatically the moment any scene loads (via
-    /// RuntimeInitializeOnLoadMethod), builds every GameObject it needs from
-    /// primitives and code -- the enclosed room, the disco lights, the tile
-    /// grid, the player, the follow camera, the UI -- and wires it all
-    /// together. Open a brand new Unity project, drop this Assets folder
-    /// in, hit Play on any scene.
-    ///
-    /// If a GameManager already exists (e.g. someone added one manually to a
-    /// scene for testing), auto-bootstrap steps aside instead of doubling up.
-    /// </summary>
     public static class GameBootstrap
     {
-        // NOTE: the assignment's prop description calls the pulpit a
-        // "9x9 platform", but nothing in the brief actually pins tile size
-        // to a rule the way it pins player speed to the JSON -- it's a
-        // deliberate design choice here, shrunk from 9 to make crossing
-        // distance feel better matched to config.PlayerSpeed.
         private const float TileSize = 5f;
         private const int GridHalfExtent = 8;
         private const float WallHeight = 40f;
         private const float WallBottomY = -30f;
         private const float PitDepth = -25f;
+        private const float CameraFieldOfView = 75f;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void AutoBootstrap()
@@ -69,12 +58,6 @@ namespace DoofusDiaries.Core
             gameManager.Configure(config, spawner, player);
         }
 
-        /// <summary>
-        /// No skybox/sun -- the room is enclosed and otherwise dark except
-        /// for the disco lights. Fog fades the view to black past a short
-        /// distance, so falling into the pit reads as falling into darkness
-        /// without needing any actual "pit" geometry.
-        /// </summary>
         private static void ConfigureAmbience()
         {
             RenderSettings.skybox = null;
@@ -93,23 +76,13 @@ namespace DoofusDiaries.Core
             playerGO.transform.SetParent(parent);
             playerGO.transform.localScale = new Vector3(1.2f, 1.2f, 1.2f);
 
-            // Swap the cube's default BoxCollider for a CapsuleCollider. Two
-            // adjacent tiles' flat-box colliders meet at a hairline seam
-            // (visible as a "tiny ledge"); a flat-bottomed box collider can
-            // catch its corner on that seam while sliding across, whereas a
-            // rounded capsule glides over it. The MeshRenderer/MeshFilter
-            // stay a cube, so Doofus still looks like one -- only the
-            // invisible collision shape changes.
             Object.Destroy(playerGO.GetComponent<BoxCollider>());
             var capsule = playerGO.AddComponent<CapsuleCollider>();
-            capsule.direction = 1; // Y-axis
+            capsule.direction = 1;
             capsule.radius = 0.5f;
             capsule.height = 1.1f;
             capsule.material = PhysicsMaterials.Frictionless;
 
-            // Rigidbody is added here; PlayerController.Awake() is the single
-            // place that configures its physics properties (gravity,
-            // constraints, drag), so there's one source of truth for that.
             playerGO.AddComponent<Rigidbody>();
 
             Renderer renderer = playerGO.GetComponent<Renderer>();
@@ -121,30 +94,33 @@ namespace DoofusDiaries.Core
         private static void BuildCamera(Transform parent, Transform target)
         {
             GameObject camGO;
+            Camera cam;
             if (Camera.main != null)
             {
                 camGO = Camera.main.gameObject;
+                cam = Camera.main;
             }
             else
             {
                 camGO = new GameObject("Main Camera");
                 camGO.transform.SetParent(parent);
                 camGO.tag = "MainCamera";
-                camGO.AddComponent<Camera>();
+                cam = camGO.AddComponent<Camera>();
                 camGO.AddComponent<AudioListener>();
             }
+
+            cam.fieldOfView = CameraFieldOfView;
 
             var follow = camGO.AddComponent<CameraFollow>();
             follow.Target = target;
         }
 
-        /// <summary>Four walls and a ceiling enclosing the whole play grid -- "a cube where you can control the lighting", per the brief.</summary>
         private static void BuildEnclosedRoom(Transform parent)
         {
             var room = new GameObject("Room");
             room.transform.SetParent(parent);
 
-            float half = (GridHalfExtent + 1) * TileSize; // a little buffer past the outermost possible tile
+            float half = (GridHalfExtent + 1) * TileSize;
             float wallSpan = WallHeight - WallBottomY;
             float wallCenterY = (WallHeight + WallBottomY) / 2f;
             Color wallColor = new Color(0.05f, 0.05f, 0.07f);
@@ -164,11 +140,6 @@ namespace DoofusDiaries.Core
             wall.transform.position = position;
             wall.transform.localScale = scale;
 
-            // Recolor whichever default material CreatePrimitive assigned
-            // rather than constructing a new Material with an explicit
-            // shader -- that keeps this correct whether the project is set
-            // up for the Built-in pipeline or URP (a hardcoded "Standard"
-            // shader lookup renders magenta/missing under URP).
             Renderer renderer = wall.GetComponent<Renderer>();
             if (renderer != null) renderer.material.color = color;
         }
@@ -181,7 +152,6 @@ namespace DoofusDiaries.Core
             controller.BuildLights(lightsRoot.transform, WallHeight - 4f);
         }
 
-        /// <summary>Invisible trigger volume well below the tile grid; anything that falls into it has "fallen into the pit" (see PitVolume/PlayerController).</summary>
         private static void BuildPitVolume(Transform parent)
         {
             var pit = new GameObject("PitVolume");

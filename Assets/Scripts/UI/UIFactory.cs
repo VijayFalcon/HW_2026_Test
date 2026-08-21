@@ -1,15 +1,12 @@
+// Helper methods for building uGUI panels, labels, and buttons entirely
+// from code, since the project has no hand-authored Canvas/prefab.
+
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
 
 namespace DoofusDiaries.UI
 {
-    /// <summary>
-    /// Small helpers for building uGUI elements entirely from code. The whole
-    /// project builds its UI at runtime (see UIManager/GameBootstrap) instead
-    /// of relying on a hand-authored Canvas prefab, so these few methods are
-    /// the single place that knows how a panel/label/button is put together.
-    /// </summary>
     internal static class UIFactory
     {
         public static GameObject Panel(Transform parent, string name, Color background)
@@ -73,12 +70,6 @@ namespace DoofusDiaries.UI
             return button;
         }
 
-        /// <summary>
-        /// Unity renamed its built-in font resource across versions
-        /// ("Arial.ttf" pre-2022.2, "LegacyRuntime.ttf" from 2022.2 on).
-        /// Try both and fall back to null (Unity substitutes a default)
-        /// rather than letting UI construction throw on an unfamiliar version.
-        /// </summary>
         private static Font GetBuiltinFont()
         {
             Font font = TryGetFont("LegacyRuntime.ttf");

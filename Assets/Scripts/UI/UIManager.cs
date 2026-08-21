@@ -1,15 +1,12 @@
+// Builds and drives the Start, HUD, and Game Over screens entirely at
+// runtime via UIFactory, reacting to GameManager's state/score events.
+
 using UnityEngine;
 using UnityEngine.UI;
 using DoofusDiaries.Core;
 
 namespace DoofusDiaries.UI
 {
-    /// <summary>
-    /// Builds and drives the three screens the game needs: Start, in-game
-    /// HUD (score), and Game Over. Everything is constructed at runtime from
-    /// UIFactory helpers, so there is no scene/prefab wiring to get wrong.
-    /// Purely reactive to GameManager: it never decides game logic itself.
-    /// </summary>
     public class UIManager : MonoBehaviour
     {
         private GameManager _gameManager;
@@ -67,8 +64,6 @@ namespace DoofusDiaries.UI
             _scoreText.text = $"Score: {score}";
         }
 
-        // ---- UI construction --------------------------------------------
-
         private void BuildCanvas()
         {
             var canvasGO = new GameObject("Canvas");
@@ -91,7 +86,7 @@ namespace DoofusDiaries.UI
             UIFactory.Text(
                 _startScreen.transform,
                 "Subtitle",
-                "Hop between pulpits before they collapse!\nLeft/Right or A/D to move.",
+                "Walk across the pulpits before they collapse!\nWASD or Arrow keys to move freely.",
                 36,
                 new Vector2(0, 40));
             UIFactory.Button(_startScreen.transform, "StartButton", "START", new Vector2(0, -220), () => _gameManager.StartGame());
