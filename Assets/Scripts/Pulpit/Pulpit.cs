@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using DoofusDiaries.Core;
 
 namespace DoofusDiaries.Pulpits
 {
@@ -57,6 +58,12 @@ namespace DoofusDiaries.Pulpits
 
             _cachedRenderer = GetComponentInChildren<Renderer>();
             _cachedCollider = GetComponent<Collider>();
+            if (_cachedCollider != null)
+            {
+                // Same frictionless material as the player -- keeps Doofus
+                // from snagging on the seam between this tile and its neighbor.
+                _cachedCollider.material = PhysicsMaterials.Frictionless;
+            }
             if (_cachedRenderer != null)
             {
                 _cachedRenderer.material.color = NormalColor;

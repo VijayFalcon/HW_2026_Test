@@ -93,6 +93,20 @@ namespace DoofusDiaries.Core
             playerGO.transform.SetParent(parent);
             playerGO.transform.localScale = new Vector3(1.2f, 1.2f, 1.2f);
 
+            // Swap the cube's default BoxCollider for a CapsuleCollider. Two
+            // adjacent tiles' flat-box colliders meet at a hairline seam
+            // (visible as a "tiny ledge"); a flat-bottomed box collider can
+            // catch its corner on that seam while sliding across, whereas a
+            // rounded capsule glides over it. The MeshRenderer/MeshFilter
+            // stay a cube, so Doofus still looks like one -- only the
+            // invisible collision shape changes.
+            Object.Destroy(playerGO.GetComponent<BoxCollider>());
+            var capsule = playerGO.AddComponent<CapsuleCollider>();
+            capsule.direction = 1; // Y-axis
+            capsule.radius = 0.5f;
+            capsule.height = 1.1f;
+            capsule.material = PhysicsMaterials.Frictionless;
+
             // Rigidbody is added here; PlayerController.Awake() is the single
             // place that configures its physics properties (gravity,
             // constraints, drag), so there's one source of truth for that.
