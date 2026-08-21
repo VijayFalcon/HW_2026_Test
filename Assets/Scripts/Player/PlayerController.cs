@@ -27,7 +27,7 @@ namespace DoofusDiaries.Player
             _rigidbody = GetComponent<Rigidbody>();
             _rigidbody.useGravity = true;
             _rigidbody.constraints = RigidbodyConstraints.FreezeRotation;
-            _rigidbody.drag = 0.5f;
+            _rigidbody.linearDamping = 0.5f;
         }
 
         public void Initialize(GameConfig config, Vector3 startPosition)
@@ -36,7 +36,7 @@ namespace DoofusDiaries.Player
             _alive = true;
             _lastScoredTile = null;
 
-            _rigidbody.velocity = Vector3.zero;
+            _rigidbody.linearVelocity = Vector3.zero;
             _rigidbody.angularVelocity = Vector3.zero;
             transform.position = startPosition;
         }
@@ -54,7 +54,7 @@ namespace DoofusDiaries.Player
             if (move.sqrMagnitude > 1f) move.Normalize();
 
             Vector3 horizontal = move * _config.PlayerSpeed;
-            _rigidbody.velocity = new Vector3(horizontal.x, _rigidbody.velocity.y, horizontal.z);
+            _rigidbody.linearVelocity = new Vector3(horizontal.x, _rigidbody.linearVelocity.y, horizontal.z);
         }
 
         private void OnCollisionEnter(Collision collision)
@@ -85,7 +85,7 @@ namespace DoofusDiaries.Player
         {
             if (!_alive) return;
             _alive = false;
-            _rigidbody.velocity = Vector3.zero;
+            _rigidbody.linearVelocity = Vector3.zero;
             OnFell?.Invoke();
         }
     }

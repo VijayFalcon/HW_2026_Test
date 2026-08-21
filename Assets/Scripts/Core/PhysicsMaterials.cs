@@ -8,17 +8,17 @@ namespace DoofusDiaries.Core
 {
     public static class PhysicsMaterials
     {
-        public static readonly PhysicMaterial Frictionless = CreateFrictionless();
+        public static readonly PhysicsMaterial Frictionless = CreateFrictionless();
 
-        private static PhysicMaterial CreateFrictionless()
+        private static PhysicsMaterial CreateFrictionless()
         {
-            return new PhysicMaterial("DoofusFrictionless")
+            return new PhysicsMaterial("DoofusFrictionless")
             {
                 dynamicFriction = 0f,
                 staticFriction = 0f,
                 bounciness = 0f,
-                frictionCombine = PhysicMaterialCombine.Minimum,
-                bounceCombine = PhysicMaterialCombine.Minimum
+                frictionCombine = PhysicsMaterialCombine.Minimum,
+                bounceCombine = PhysicsMaterialCombine.Minimum
             };
         }
     }
